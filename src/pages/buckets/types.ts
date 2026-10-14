@@ -42,6 +42,8 @@ export type WebsiteConfig = {
 };
 
 export type Quotas = {
-  maxSize: null;
-  maxObjects: null;
+  /** Bytes; null when no storage quota is set. */
+  maxSize: number | null;
+  /** Object count; null when no object quota is set. */
+  maxObjects: number | null;
 };

@@ -1,176 +1,123 @@
-import { Alert, Loading, Table } from "react-daisyui";
-import { useBrowseObjects } from "./hooks";
 import { dayjs, readableBytes } from "@/lib/utils";
-import mime from "mime/lite";
-import { Object } from "./types";
-import { API_URL } from "@/lib/api";
-import {
-  CircleXIcon,
-  FileArchive,
-  FileIcon,
-  FileType,
-  Folder,
-} from "lucide-react";
-import { useBucketContext } from "../context";
+import { Folder } from "lucide-react";
+import { ErrorState, SkeletonRows } from "@/components/ui/states";
 import ObjectActions from "./object-actions";
-import GotoTopButton from "@/components/ui/goto-top-btn";
+import ObjectThumb from "./object-thumb";
+import type { Object as S3Object } from "./types";
 
-type Props = {
-  prefix?: string;
-  onPrefixChange?: (prefix: string) => void;
+export type FolderEntry = { prefix: string; name: string };
+
+export type ListProps = {
+  folders: FolderEntry[];
+  objects: S3Object[];
+  prefix: string;
+  isLoading?: boolean;
+  error?: unknown;
+  onOpenFolder: (prefix: string) => void;
+  onInspect: (object: S3Object) => void;
 };
 
-const ObjectList = ({ prefix, onPrefixChange }: Props) => {
-  const { bucketName } = useBucketContext();
-  const { data, error, isLoading } = useBrowseObjects(bucketName, {
-    prefix,
-    limit: 1000,
-  });
-
-  const onObjectClick = (object: Object) => {
-    window.open(API_URL + object.url + "?view=1", "_blank");
-  };
+const ObjectList = ({
+  folders,
+  objects,
+  prefix,
+  isLoading,
+  error,
+  onOpenFolder,
+  onInspect,
+}: ListProps) => {
+  if (error) {
+    return <ErrorState title="Could not list this folder" error={error} />;
+  }
 
   return (
-    <div className="overflow-x-auto min-h-[400px]">
-      <Table>
-        <Table.Head>
-          <span>Name</span>
-          <span>Size</span>
-          <span>Last Modified</span>
-        </Table.Head>
+    <div className="overflow-x-auto">
+      <table className="table table-row-hover min-w-[40rem]">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th className="w-28">Type</th>
+            <th className="w-28 text-right">Size</th>
+            <th className="w-40">Modified</th>
+            <th className="w-0" />
+          </tr>
+        </thead>
 
-        <Table.Body>
+        <tbody>
           {isLoading ? (
-            <tr>
-              <td colSpan={3}>
-                <div className="h-[320px] flex items-center justify-center">
-                  <Loading />
-                </div>
-              </td>
-            </tr>
-          ) : error ? (
-            <tr>
-              <td colSpan={3}>
-                <Alert status="error" icon={<CircleXIcon />}>
-                  <span>{error.message}</span>
-                </Alert>
-              </td>
-            </tr>
-          ) : !data?.prefixes?.length && !data?.objects?.length ? (
-            <tr>
-              <td className="text-center py-16" colSpan={3}>
-                No objects
-              </td>
-            </tr>
-          ) : null}
+            <SkeletonRows rows={8} cols={5} />
+          ) : (
+            <>
+              {folders.map((folder) => (
+                <tr key={folder.prefix} className="group">
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => onOpenFolder(folder.prefix)}
+                      className="flex flex-row items-center gap-2.5 min-w-0 text-left w-full"
+                    >
+                      <Folder
+                        size={17}
+                        aria-hidden
+                        className="shrink-0 text-primary fill-primary/15"
+                      />
+                      <span className="font-medium truncate group-hover:text-primary transition-colors">
+                        {folder.name}
+                      </span>
+                    </button>
+                  </td>
+                  <td className="muted text-xs">Folder</td>
+                  <td />
+                  <td />
+                  <ObjectActions
+                    prefix={prefix}
+                    object={{ objectKey: folder.prefix, url: "" }}
+                  />
+                </tr>
+              ))}
 
-          {data?.prefixes.map((prefix) => (
-            <tr
-              key={prefix}
-              className="hover:bg-neutral/60 hover:text-neutral-content group"
-            >
-              <td
-                className="cursor-pointer"
-                role="button"
-                onClick={() => onPrefixChange?.(prefix)}
-              >
-                <span className="flex items-center gap-2 font-normal">
-                  <Folder size={20} className="text-primary" />
-                  {prefix
-                    .substring(0, prefix.lastIndexOf("/"))
-                    .split("/")
-                    .pop()}
-                </span>
-              </td>
-              <td colSpan={2} />
-              <ObjectActions object={{ objectKey: prefix, url: "" }} />
-            </tr>
-          ))}
-
-          {data?.objects.map((object, idx) => {
-            const extIdx = object.objectKey.lastIndexOf(".");
-            const filename =
-              extIdx >= 0
-                ? object.objectKey.substring(0, extIdx)
-                : object.objectKey;
-            const ext = extIdx >= 0 ? object.objectKey.substring(extIdx) : null;
-
-            return (
-              <tr
-                key={object.objectKey}
-                className="hover:bg-neutral/60 hover:text-neutral-content group"
-              >
-                <td
-                  className="cursor-pointer"
-                  role="button"
-                  onClick={() => onObjectClick(object)}
-                >
-                  <span className="flex items-center font-normal w-full">
-                    <FilePreview ext={ext?.substring(1)} object={object} />
-                    <span className="truncate max-w-[40vw]">{filename}</span>
-                    {ext && <span className="text-base-content/60">{ext}</span>}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap">
-                  {readableBytes(object.size)}
-                </td>
-                <td className="whitespace-nowrap">
-                  {dayjs(object.lastModified).fromNow()}
-                </td>
-                <ObjectActions
-                  prefix={data.prefix}
-                  object={object}
-                  end={
-                    idx >= data.objects.length - 2 && data.objects.length > 5
-                  }
-                />
-              </tr>
-            );
-          })}
-        </Table.Body>
-      </Table>
-
-      <GotoTopButton />
+              {objects.map((object, idx) => (
+                <tr key={object.objectKey} className="group">
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => onInspect(object)}
+                      title={object.objectKey}
+                      className="flex flex-row items-center gap-2.5 min-w-0 text-left w-full"
+                    >
+                      <ObjectThumb object={object} size={20} />
+                      <span className="truncate group-hover:text-primary transition-colors">
+                        {object.objectKey}
+                      </span>
+                    </button>
+                  </td>
+                  <td className="muted text-xs uppercase tracking-wide">
+                    {object.objectKey.split(".").pop()?.slice(0, 8) || "—"}
+                  </td>
+                  <td className="text-right tnum whitespace-nowrap">
+                    {readableBytes(object.size)}
+                  </td>
+                  <td
+                    className="muted text-xs whitespace-nowrap"
+                    title={dayjs(object.lastModified).format(
+                      "YYYY-MM-DD HH:mm:ss"
+                    )}
+                  >
+                    {dayjs(object.lastModified).fromNow()}
+                  </td>
+                  <ObjectActions
+                    prefix={prefix}
+                    object={object}
+                    onInspect={() => onInspect(object)}
+                    end={idx >= objects.length - 2 && objects.length > 5}
+                  />
+                </tr>
+              ))}
+            </>
+          )}
+        </tbody>
+      </table>
     </div>
-  );
-};
-
-type FilePreviewProps = {
-  ext?: string | null;
-  object: Object;
-};
-
-const FilePreview = ({ ext, object }: FilePreviewProps) => {
-  const type = mime.getType(ext || "")?.split("/")[0];
-  let Icon = FileIcon;
-
-  if (
-    ["zip", "rar", "7z", "iso", "tar", "gz", "bz2", "xz"].includes(ext || "")
-  ) {
-    Icon = FileArchive;
-  }
-
-  if (type === "image") {
-    const thumbnailSupport = ["jpg", "jpeg", "png", "gif"].includes(ext || "");
-    return (
-      <img
-        src={API_URL + object.url + (thumbnailSupport ? "?thumb=1" : "?view=1")}
-        alt={object.objectKey}
-        className="size-5 object-cover overflow-hidden mr-2"
-      />
-    );
-  }
-
-  if (type === "text") {
-    Icon = FileType;
-  }
-
-  return (
-    <Icon
-      size={20}
-      className="text-base-content/60 group-hover:text-neutral-content/80 mr-2"
-    />
   );
 };
 

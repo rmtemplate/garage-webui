@@ -25,6 +25,8 @@ dist-ssr
 
 .env*
 !.env.example
+# Local Demo Mode config is meant to be committed: it holds no secrets.
+!.env.demo
 docker-compose.*.yml
 
 data/

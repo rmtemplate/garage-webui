@@ -1,7 +1,7 @@
 import Button from "@/components/ui/button";
+import Dialog from "@/components/ui/dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
-import { Modal } from "react-daisyui";
 import { useForm } from "react-hook-form";
 import { useDisclosure } from "@/hooks/useDisclosure";
 import { createBucketSchema, CreateBucketSchema } from "../schema";
@@ -11,59 +11,83 @@ import { useQueryClient } from "@tanstack/react-query";
 import { handleError } from "@/lib/utils";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const CreateBucketDialog = () => {
-  const { dialogRef, isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const form = useForm<CreateBucketSchema>({
     resolver: zodResolver(createBucketSchema),
     defaultValues: { globalAlias: "" },
   });
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (isOpen) form.setFocus("globalAlias");
+    if (isOpen) {
+      form.reset({ globalAlias: "" });
+      // The dialog animates in; focus once it is on screen.
+      const t = setTimeout(() => form.setFocus("globalAlias"), 50);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const createBucket = useCreateBucket({
-    onSuccess: () => {
+    onSuccess: (bucket) => {
       onClose();
       queryClient.invalidateQueries({ queryKey: ["buckets"] });
-      toast.success("Bucket created!");
+      toast.success("Bucket created", {
+        description: form.getValues("globalAlias"),
+        action: bucket?.id
+          ? {
+              label: "Open",
+              onClick: () => navigate(`/buckets/${bucket.id}`),
+            }
+          : undefined,
+      });
     },
     onError: handleError,
   });
 
-  const onSubmit = form.handleSubmit((values) => {
-    createBucket.mutate(values);
-  });
+  const onSubmit = form.handleSubmit((values) => createBucket.mutate(values));
 
   return (
     <>
-      <Button icon={Plus} color="primary" onClick={onOpen}>
-        Create Bucket
+      <Button icon={Plus} color="primary" size="sm" onClick={onOpen}>
+        Create bucket
       </Button>
 
-      <Modal ref={dialogRef} backdrop open={isOpen}>
-        <Modal.Header className="mb-1">Create New Bucket</Modal.Header>
-        <Modal.Body>
-          <p>Enter the details of the bucket you wish to create.</p>
-
-          <form onSubmit={onSubmit}>
-            <InputField form={form} name="globalAlias" title="Bucket Name" />
-          </form>
-        </Modal.Body>
-
-        <Modal.Actions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            color="primary"
-            disabled={createBucket.isPending}
-            onClick={onSubmit}
-          >
-            Submit
-          </Button>
-        </Modal.Actions>
-      </Modal>
+      <Dialog
+        open={isOpen}
+        onClose={onClose}
+        title="Create bucket"
+        description="Buckets are addressed by a globally unique alias. You can add more aliases later."
+        onSubmit={onSubmit}
+        footer={
+          <>
+            <Button type="button" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              color="primary"
+              loading={createBucket.isPending}
+            >
+              Create bucket
+            </Button>
+          </>
+        }
+      >
+        <InputField
+          form={form}
+          name="globalAlias"
+          title="Bucket name"
+          placeholder="my-bucket"
+          autoComplete="off"
+          hint="Lowercase letters, numbers and dashes work best with S3 clients."
+        />
+      </Dialog>
     </>
   );
 };

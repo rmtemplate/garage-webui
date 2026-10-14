@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="pastel">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
 
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -12,6 +13,25 @@
     <title>Garage Web UI</title>
     <script>
       window.__BASE_PATH = "%BASE_PATH%";
+
+      // Resolve the theme before first paint. Without this the page renders
+      // light for a frame before ThemeProvider mounts, which reads as a flash
+      // on every load for dark-mode users.
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem("appdata") || "{}");
+          var mode = (saved.state && saved.state.themeMode) || "system";
+          var dark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var el = document.documentElement;
+          el.setAttribute("data-theme", dark ? "garage-dark" : "garage-light");
+          el.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "garage-light");
+        }
+      })();
     </script>
   </head>
   <body>

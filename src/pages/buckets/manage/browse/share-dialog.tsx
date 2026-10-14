@@ -1,78 +1,130 @@
 import { createDisclosure } from "@/lib/disclosure";
-import { Alert, Modal } from "react-daisyui";
+import Dialog from "@/components/ui/dialog";
+import Button from "@/components/ui/button";
+import Input from "@/components/ui/input";
+import CopyButton from "@/components/ui/copy-button";
 import { useBucketContext } from "../context";
 import { useConfig } from "@/hooks/useConfig";
 import { useEffect, useMemo, useState } from "react";
-import Input from "@/components/ui/input";
-import Button from "@/components/ui/button";
-import { Copy, FileWarningIcon } from "lucide-react";
-import { copyToClipboard } from "@/lib/utils";
-import Checkbox from "@/components/ui/checkbox";
+import { TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 export const shareDialog = createDisclosure<{ key: string; prefix: string }>();
 
 const ShareDialog = () => {
-  const { isOpen, data, dialogRef } = shareDialog.use();
+  const { isOpen, data } = shareDialog.use();
   const { bucket, bucketName } = useBucketContext();
   const { data: config } = useConfig();
   const [domain, setDomain] = useState(bucketName);
 
-  const websitePort = config?.s3_web?.bind_addr?.split(":").pop() || "80";
-  const rootDomain = config?.s3_web?.root_domain;
+  const domains = useMemo(() => {
+    const port = config?.s3_web?.bind_addr?.split(":").pop() || "80";
+    const rootDomain = config?.s3_web?.root_domain;
+    const hosts = [bucketName];
 
-  const domains = useMemo(
-    () => [
-      bucketName,
-      bucketName + rootDomain,
-      bucketName + rootDomain + `:${websitePort}`,
-    ],
-    [bucketName, config?.s3_web]
-  );
+    if (rootDomain) {
+      hosts.push(bucketName + rootDomain);
+      if (port !== "80") hosts.push(`${bucketName}${rootDomain}:${port}`);
+    }
+    return hosts;
+  }, [bucketName, config]);
 
-  useEffect(() => {
-    setDomain(bucketName);
-  }, [domains]);
+  useEffect(() => setDomain(domains[0]), [domains]);
 
-  const url = "http://" + domain + "/" + data?.prefix + data?.key;
+  const url = `http://${domain}/${data?.prefix || ""}${data?.key || ""}`;
 
   return (
-    <Modal ref={dialogRef} open={isOpen} backdrop>
-      <Modal.Header className="truncate">Share {data?.key || ""}</Modal.Header>
-      <Modal.Body>
-        {!bucket.websiteAccess && (
-          <Alert className="mb-4 items-start text-sm">
-            <FileWarningIcon className="mt-1" />
-            Sharing is only available for buckets with enabled website access.
-          </Alert>
-        )}
-        <div className="flex flex-row overflow-x-auto pb-2">
-          {domains.map((item) => (
-            <Checkbox
-              key={item}
-              label={item}
-              checked={item === domain}
-              onChange={() => setDomain(item)}
+    <Dialog
+      open={isOpen}
+      onClose={shareDialog.close}
+      title="Share object"
+      description="Website access serves this object over plain HTTP, with no credentials."
+      footer={
+        <Button size="sm" onClick={shareDialog.close}>
+          Close
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {!bucket.websiteAccess ? (
+          <div className="flex flex-row items-start gap-3 p-3 rounded-box border border-warning/30 bg-warning/[0.07]">
+            <TriangleAlert
+              size={16}
+              className="text-warning shrink-0 mt-0.5"
+              aria-hidden
             />
-          ))}
-        </div>
-        <div className="relative mt-2">
+            <p className="text-[0.8125rem] leading-relaxed">
+              Website access is off for this bucket, so this link will not
+              resolve yet.{" "}
+              <Link
+                to={`/buckets/${bucket.id}?tab=overview`}
+                onClick={shareDialog.close}
+                className="text-primary hover:underline font-medium"
+              >
+                Enable it in Overview
+              </Link>
+              .
+            </p>
+          </div>
+        ) : null}
+
+        {domains.length > 1 ? (
+          <div>
+            <p className="eyebrow mb-2">Hostname</p>
+            <div
+              role="radiogroup"
+              aria-label="Hostname"
+              className="flex flex-col gap-1.5"
+            >
+              {domains.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="radio"
+                  aria-checked={item === domain}
+                  onClick={() => setDomain(item)}
+                  className={cn(
+                    "flex flex-row items-center gap-2.5 px-3 py-2 rounded-btn border text-left",
+                    "text-[0.8125rem] font-mono transition-colors duration-150",
+                    item === domain
+                      ? "border-primary bg-primary/[0.07] text-base-content"
+                      : "border-base-300 hover:border-base-content/20 text-base-content/70"
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "grid place-items-center size-3.5 rounded-full border-2 shrink-0",
+                      item === domain ? "border-primary" : "border-base-content/30"
+                    )}
+                  >
+                    {item === domain ? (
+                      <span className="size-1.5 rounded-full bg-primary" />
+                    ) : null}
+                  </span>
+                  <span className="truncate">{item}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div>
+          <label htmlFor="share-url" className="label label-text pt-0">
+            Public URL
+          </label>
           <Input
+            id="share-url"
+            readOnly
             value={url}
-            className="w-full pr-12"
+            className="font-mono text-xs"
             onFocus={(e) => e.target.select()}
-          />
-          <Button
-            icon={Copy}
-            onClick={() => copyToClipboard(url)}
-            className="absolute top-0 right-0"
-            color="ghost"
+            suffix={<CopyButton value={url} label="Copy link" />}
           />
         </div>
-      </Modal.Body>
-      <Modal.Actions>
-        <Button onClick={() => shareDialog.close()}>Close</Button>
-      </Modal.Actions>
-    </Modal>
+      </div>
+    </Dialog>
   );
 };
 

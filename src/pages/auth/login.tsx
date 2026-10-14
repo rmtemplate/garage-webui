@@ -1,10 +1,11 @@
 import Button from "@/components/ui/button";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card } from "react-daisyui";
 import { useForm } from "react-hook-form";
 import { loginSchema } from "./schema";
 import { InputField } from "@/components/ui/input";
 import { useLogin } from "./hooks";
+import garageLogo from "@/assets/garage-logo.svg";
+import { KeyRound, User } from "lucide-react";
 
 export default function LoginPage() {
   const form = useForm({
@@ -14,41 +15,51 @@ export default function LoginPage() {
   const login = useLogin();
 
   return (
-    <form onSubmit={form.handleSubmit((v) => login.mutate(v))}>
-      <Card className="w-full max-w-md" bordered>
-        <Card.Body>
-          <Card.Title tag="h2">Login</Card.Title>
-          <p className="text-base-content/60">
-            Enter username and password below to log in to your account
-          </p>
+    <div className="surface shadow-md p-6 sm:p-8 animate-fade-in-up">
+      <div className="flex flex-col items-center text-center mb-7">
+        <img src={garageLogo} alt="" aria-hidden className="size-11 mb-4" />
+        <h1 className="text-lg font-semibold tracking-[-0.015em]">
+          Sign in to Garage
+        </h1>
+        <p className="text-[0.8125rem] muted mt-1.5">
+          Enter your credentials to manage your cluster.
+        </p>
+      </div>
 
-          <InputField
-            form={form}
-            name="username"
-            title="Username"
-            placeholder="Enter your username"
-          />
+      <form
+        onSubmit={form.handleSubmit((v) => login.mutate(v))}
+        className="flex flex-col gap-4"
+      >
+        <InputField
+          form={form}
+          name="username"
+          title="Username"
+          icon={User}
+          autoComplete="username"
+          autoFocus
+          placeholder="admin"
+        />
 
-          <InputField
-            form={form}
-            name="password"
-            title="Password"
-            type="password"
-            placeholder="Enter your password"
-          />
+        <InputField
+          form={form}
+          name="password"
+          title="Password"
+          type="password"
+          icon={KeyRound}
+          autoComplete="current-password"
+          placeholder="••••••••"
+        />
 
-          <Card.Actions className="mt-4">
-            <Button
-              type="submit"
-              color="primary"
-              className="w-full md:w-auto min-w-[100px]"
-              loading={login.isPending}
-            >
-              Login
-            </Button>
-          </Card.Actions>
-        </Card.Body>
-      </Card>
-    </form>
+        <Button
+          type="submit"
+          color="primary"
+          size="lg"
+          className="w-full mt-2"
+          loading={login.isPending}
+        >
+          Sign in
+        </Button>
+      </form>
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { useMemo } from "react";
-import { Tabs } from "react-daisyui";
 import { useSearchParams } from "react-router-dom";
 
 export type Tab = {
@@ -18,6 +17,10 @@ type Props = {
   contentClassName?: string;
 };
 
+/**
+ * URL-backed tabs: the active tab lives in a query param, so a tab is
+ * linkable, survives a reload, and works with the back button.
+ */
 const TabView = ({
   tabs,
   name = "tab",
@@ -34,32 +37,54 @@ const TabView = ({
 
   return (
     <>
-      <Tabs
-        variant="boxed"
+      <div
+        role="tablist"
+        aria-label="Sections"
         className={cn(
-          "w-auto inline-flex flex-row items-stretch overflow-x-auto",
+          "flex flex-row items-center gap-1 border-b border-base-300 overflow-x-auto",
           className
         )}
       >
-        {tabs.map(({ icon: Icon, ...tab }) => (
-          <Tabs.Tab
-            key={tab.name}
-            active={curTab === tab.name}
-            className="flex flex-row items-center gap-x-2 h-auto shrink-0"
-            onClick={() => {
-              setSearchParams((params) => {
-                params.set(name, tab.name);
-                return params;
-              });
-            }}
-          >
-            {Icon ? <Icon size={20} /> : null}
-            <span>{tab.title || tab.name}</span>
-          </Tabs.Tab>
-        ))}
-      </Tabs>
+        {tabs.map(({ icon: Icon, ...tab }) => {
+          const active = curTab === tab.name;
 
-      <div className={cn("mt-4", contentClassName)}>{content}</div>
+          return (
+            <button
+              key={tab.name}
+              role="tab"
+              type="button"
+              aria-selected={active}
+              onClick={() => {
+                setSearchParams(
+                  (params) => {
+                    params.set(name, tab.name);
+                    return params;
+                  },
+                  { replace: true }
+                );
+              }}
+              className={cn(
+                "relative inline-flex flex-row items-center gap-2 shrink-0",
+                "h-10 px-3 -mb-px text-[0.8125rem] font-medium rounded-t-btn",
+                "border-b-2 transition-colors duration-150",
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-base-content/60 hover:text-base-content hover:bg-base-content/[0.04]"
+              )}
+            >
+              {Icon ? <Icon size={15} aria-hidden /> : null}
+              {tab.title || tab.name}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        role="tabpanel"
+        className={cn("mt-4 md:mt-5 animate-fade-in", contentClassName)}
+      >
+        {content}
+      </div>
     </>
   );
 };

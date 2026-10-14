@@ -8,6 +8,10 @@ type Props = ComponentPropsWithoutRef<typeof BaseSelect> & {
   onCreateOption?: (inputValue: string) => void;
 };
 
+/**
+ * react-select, restyled onto the app's control tokens so it is
+ * indistinguishable from a native field.
+ */
 const Select = forwardRef<any, Props>(({ creatable, ...props }, ref) => {
   const Comp = creatable ? Creatable : BaseSelect;
 
@@ -15,30 +19,45 @@ const Select = forwardRef<any, Props>(({ creatable, ...props }, ref) => {
     <Comp
       ref={ref}
       unstyled
+      menuPlacement="auto"
       classNames={{
         control: (p) =>
           cn(
-            "bg-base-100 px-4 rounded-btn border text-base-content border-base-content/20 h-12",
-            p.isMulti && "py-2 flex flex-row gap-2 items-center flex-wrap",
-            p.isMulti && p.hasValue ? "pt-1 px-2 h-auto" : null
+            "bg-base-100 border rounded-btn text-sm text-base-content transition-colors duration-150",
+            "min-h-[var(--ctl-h-lg)] px-3",
+            p.isFocused
+              ? "border-primary ring-2 ring-primary/20"
+              : "border-base-300 hover:border-base-content/20",
+            p.isMulti && "py-1 flex flex-row gap-1.5 items-center flex-wrap"
           ),
+        valueContainer: () => "gap-1",
+        placeholder: () => "text-base-content/40",
         input: () => "text-base-content",
+        indicatorsContainer: () => "text-base-content/40 gap-1",
+        dropdownIndicator: () => "px-0.5",
+        clearIndicator: () => "px-0.5 hover:text-base-content cursor-pointer",
+        menu: () => "mt-1.5 z-30",
         menuList: () =>
-          "bg-base-100 rounded-btn border border-base-content/20 p-0",
-        noOptionsMessage: () => "my-4",
+          "panel max-h-60 overflow-y-auto flex flex-col gap-0.5",
+        noOptionsMessage: () => "py-3 text-[0.8125rem] text-base-content/50",
         option: (p) =>
           cn(
-            "text-base-content bg-base-100 hover:bg-base-300 px-4 py-3 !cursor-pointer",
-            p.isSelected || p.isFocused ? "bg-base-200" : null
+            "px-2.5 py-2 rounded-btn text-[0.8125rem] cursor-pointer transition-colors",
+            p.isSelected
+              ? "bg-primary text-primary-content"
+              : p.isFocused
+                ? "bg-base-content/[0.06] text-base-content"
+                : "text-base-content"
           ),
         singleValue: () => "text-base-content",
         multiValue: () =>
-          "bg-base-300/80 text-base-content/80 pl-2 mt-1 mr-1 flex flex-row items-center",
+          "bg-base-200 border border-base-300 rounded-badge pl-2 h-6 flex flex-row items-center text-[0.8125rem]",
+        multiValueLabel: () => "pr-1",
         multiValueRemove: () =>
-          "px-2 py-2 hover:bg-primary hover:text-primary-content",
+          "px-1 h-full flex items-center rounded-r-badge text-base-content/45 hover:text-error hover:bg-error/10 cursor-pointer",
       }}
       noOptionsMessage={() =>
-        creatable ? "Type something to add..." : undefined
+        creatable ? "Type to add a new value…" : "No options"
       }
       {...props}
     />

@@ -9,26 +9,44 @@ type CheckboxProps = Omit<
   "form"
 > & {
   label?: string;
+  description?: string;
   inputClassName?: string;
 };
 
 const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ label, className, inputClassName, ...props }, ref) => {
+  ({ label, description, className, inputClassName, ...props }, ref) => {
+    const control = (
+      <BaseCheckbox
+        ref={ref}
+        color="primary"
+        size="sm"
+        className={cn("shrink-0", inputClassName)}
+        {...props}
+      />
+    );
+
+    // Bare checkbox (table cells) — no label wrapper to throw the row off.
+    if (!label && !description) return control;
+
     return (
       <label
         className={cn(
-          "label label-text inline-flex items-center justify-start gap-2 cursor-pointer",
+          "inline-flex items-start gap-2.5 cursor-pointer select-none py-1",
+          props.disabled && "cursor-not-allowed opacity-60",
           className
         )}
       >
-        <BaseCheckbox
-          ref={ref}
-          color="primary"
-          size="sm"
-          className={inputClassName}
-          {...props}
-        />
-        {label}
+        <span className="flex items-center h-[1.375rem]">{control}</span>
+        <span className="min-w-0">
+          <span className="block text-[0.8125rem] leading-[1.375rem] text-base-content">
+            {label}
+          </span>
+          {description ? (
+            <span className="block text-xs muted mt-0.5 leading-relaxed">
+              {description}
+            </span>
+          ) : null}
+        </span>
       </label>
     );
   }
@@ -53,7 +71,7 @@ export const CheckboxField = <T extends FieldValues>({
         <Checkbox
           {...props}
           {...field}
-          checked={field.value}
+          checked={!!field.value}
           onChange={(e) => field.onChange(e.target.checked)}
         />
       )}

@@ -1,122 +1,143 @@
 import { DeepPartial, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { websiteConfigSchema, WebsiteConfigSchema } from "../schema";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useUpdateBucket } from "../hooks";
 import { useConfig } from "@/hooks/useConfig";
-import { Info, LinkIcon } from "lucide-react";
-import Button from "@/components/ui/button";
+import { ExternalLink, Info } from "lucide-react";
 import { InputField } from "@/components/ui/input";
 import { ToggleField } from "@/components/ui/toggle";
 import { useBucketContext } from "../context";
+import { useQueryClient } from "@tanstack/react-query";
+import SavingIndicator from "../components/saving-indicator";
 
 const WebsiteAccessSection = () => {
-  const { bucket: data, bucketName } = useBucketContext();
+  const { bucket, bucketName } = useBucketContext();
   const { data: config } = useConfig();
+  const queryClient = useQueryClient();
+
   const form = useForm<WebsiteConfigSchema>({
     resolver: zodResolver(websiteConfigSchema),
   });
   const isEnabled = useWatch({ control: form.control, name: "websiteAccess" });
 
-  const websitePort = config?.s3_web?.bind_addr?.split(":").pop() || "80";
-  const rootDomain = config?.s3_web?.root_domain;
+  const updateMutation = useUpdateBucket(bucket.id);
 
-  const updateMutation = useUpdateBucket(data?.id);
+  const urls = useMemo(() => {
+    const port = config?.s3_web?.bind_addr?.split(":").pop() || "80";
+    const rootDomain = config?.s3_web?.root_domain;
+    const hosts = [bucketName];
+
+    if (rootDomain) {
+      hosts.push(bucketName + rootDomain);
+      if (port !== "80") hosts.push(`${bucketName}${rootDomain}:${port}`);
+    }
+
+    return hosts;
+  }, [bucketName, config]);
 
   const onChange = useDebounce((values: DeepPartial<WebsiteConfigSchema>) => {
-    const data = {
-      enabled: values.websiteAccess,
-      indexDocument: values.websiteAccess
-        ? values.websiteConfig?.indexDocument
-        : undefined,
-      errorDocument: values.websiteAccess
-        ? values.websiteConfig?.errorDocument
-        : undefined,
-    };
-
-    updateMutation.mutate({
-      websiteAccess: data,
-    });
+    updateMutation.mutate(
+      {
+        websiteAccess: {
+          enabled: values.websiteAccess,
+          indexDocument: values.websiteAccess
+            ? values.websiteConfig?.indexDocument
+            : undefined,
+          errorDocument: values.websiteAccess
+            ? values.websiteConfig?.errorDocument
+            : undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["bucket", bucket.id] });
+          queryClient.invalidateQueries({ queryKey: ["buckets"] });
+        },
+      }
+    );
   });
 
   useEffect(() => {
     form.reset({
-      websiteAccess: data?.websiteAccess,
+      websiteAccess: bucket.websiteAccess,
       websiteConfig: {
-        indexDocument: data?.websiteConfig?.indexDocument || "index.html",
-        errorDocument: data?.websiteConfig?.errorDocument || "error/400.html",
+        indexDocument: bucket.websiteConfig?.indexDocument || "index.html",
+        errorDocument: bucket.websiteConfig?.errorDocument || "error/400.html",
       },
     });
 
     const { unsubscribe } = form.watch((values) => onChange(values));
     return unsubscribe;
-  }, [data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucket]);
 
   return (
-    <div className="mt-8">
-      <div className="flex flex-row gap-2">
-        <p className="label label-text py-0 grow-0">Website Access</p>
-        <Button
-          href="https://garagehq.deuxfleurs.fr/documentation/cookbook/exposing-websites"
-          target="_blank"
-          size="sm"
-          shape="circle"
-          color="ghost"
-        >
-          <Info size={16} />
-        </Button>
+    <div>
+      <div className="flex flex-row items-start gap-3">
+        <ToggleField
+          form={form}
+          name="websiteAccess"
+          label="Expose as a website"
+          description="Serves objects over HTTP without S3 credentials."
+          className="flex-1"
+        />
+        <SavingIndicator mutation={updateMutation} />
       </div>
 
-      <ToggleField form={form} name="websiteAccess" label="Enabled" />
-
-      {isEnabled && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {isEnabled ? (
+        <div className="mt-4 pt-4 border-t border-base-300 flex flex-col gap-4 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InputField
               form={form}
               name="websiteConfig.indexDocument"
-              title="Index Document"
+              title="Index document"
+              placeholder="index.html"
+              autoComplete="off"
             />
             <InputField
               form={form}
               name="websiteConfig.errorDocument"
-              title="Error Document"
+              title="Error document"
+              placeholder="error/400.html"
+              autoComplete="off"
             />
           </div>
 
-          <div className="mt-4 alert flex flex-row flex-wrap text-sm gap-x-2 gap-y-1">
-            <a
-              href={`http://${bucketName}`}
-              className="inline-flex items-center flex-row gap-2 font-medium hover:link"
-              target="_blank"
-            >
-              <LinkIcon size={14} />
-              {bucketName}
-            </a>
-            {rootDomain ? (
-              <>
-                <a
-                  href={`http://${bucketName}${rootDomain}`}
-                  className="inline-flex items-center flex-row gap-2 font-medium hover:link"
-                  target="_blank"
-                >
-                  <LinkIcon size={14} />
-                  {bucketName + rootDomain}
-                </a>
-                <a
-                  href={`http://${bucketName}${rootDomain}:${websitePort}`}
-                  className="inline-flex items-center flex-row gap-2 font-medium hover:link"
-                  target="_blank"
-                >
-                  <LinkIcon size={14} />
-                  {bucketName + rootDomain + ":" + websitePort}
-                </a>
-              </>
-            ) : null}
+          <div>
+            <p className="eyebrow mb-2">Reachable at</p>
+            <ul className="flex flex-col gap-1">
+              {urls.map((host) => (
+                <li key={host}>
+                  <a
+                    href={`http://${host}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[0.8125rem] font-mono
+                               text-primary hover:underline break-all"
+                  >
+                    <ExternalLink size={13} className="shrink-0" aria-hidden />
+                    {host}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="flex items-start gap-1.5 text-xs muted mt-2.5">
+              <Info size={12} className="mt-0.5 shrink-0" aria-hidden />
+              These hostnames must resolve to your Garage web endpoint.{" "}
+              <a
+                href="https://garagehq.deuxfleurs.fr/documentation/cookbook/exposing-websites"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                Setup guide
+              </a>
+            </p>
           </div>
-        </>
-      )}
+        </div>
+      ) : null}
     </div>
   );
 };

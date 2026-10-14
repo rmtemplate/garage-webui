@@ -22,5 +22,20 @@ export default tseslint.config({
       'warn',
       { allowConstantExport: true },
     ],
+    // The Garage admin API is proxied untyped, so the fetch client and the
+    // react-query option passthroughs are genuinely generic. Kept visible as
+    // a warning rather than failing the build on plumbing that has no better
+    // type available yet.
+    '@typescript-eslint/no-explicit-any': 'warn',
+    // Conventional opt-out for deliberately discarded bindings, e.g.
+    // `const { [id]: _removed, ...rest } = state`.
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      },
+    ],
   },
 })

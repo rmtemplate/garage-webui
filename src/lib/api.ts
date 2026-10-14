@@ -1,5 +1,5 @@
 import * as utils from "@/lib/utils";
-import { BASE_PATH } from "./consts";
+import { BASE_PATH, IS_DEMO } from "./consts";
 
 type FetchOptions = Omit<RequestInit, "headers" | "body"> & {
   params?: Record<string, any>;
@@ -21,6 +21,14 @@ export class APIError extends Error {
 
 const api = {
   async fetch<T = any>(url: string, options?: Partial<FetchOptions>) {
+    // Local Demo Mode: answer from the in-memory mock adapter and never touch
+    // the network. `IS_DEMO` is a compile-time false in production builds, so
+    // this branch — and the dynamic import below — are dropped at build time.
+    if (IS_DEMO) {
+      const { handleDemoRequest } = await import("./demo/server");
+      return handleDemoRequest<T>(url, options);
+    }
+
     const headers: Record<string, string> = {};
     const _url = new URL(API_URL + url, window.location.origin);
 

@@ -182,24 +182,81 @@ This project is bootstrapped using TypeScript & React for the UI, and Go for bac
 
 ```sh
 $ git clone https://github.com/khairul169/garage-webui.git
-$ cd garage-webui && pnpm install
-$ cd backend && pnpm install && cd ..
+$ cd garage-webui
+$ pnpm install
 ```
 
-### Running
+Run `pnpm install` with the same OS you will run the dev server from. Several
+dependencies (`@swc/core`, `esbuild`, `rollup`) ship platform-specific native
+binaries, so installing from WSL and then running from Windows — or the
+reverse — leaves you with binaries for the wrong platform and a
+`'vite' is not recognized` error. If that happens, delete `node_modules` and
+install again from the OS you actually use.
 
-Start both the client and server concurrently:
+### Local Demo Mode (no Garage required)
+
+To work on the UI you do **not** need a Garage cluster, the S3 API, the Go
+backend, a `garage.toml`, or a login. Demo Mode serves every page from an
+in-memory mock adapter:
 
 ```sh
-$ pnpm run dev # or npm run dev
+$ pnpm demo
+```
+
+Then open <http://localhost:4280> — the redesigned dashboard loads straight
+away, with no authentication step.
+
+> Demo Mode uses port **4280** rather than Vite's default 5173. On Windows
+> with Hyper-V or WSL enabled, 5173 usually falls inside a reserved TCP range
+> and Vite exits with `EACCES ::1:5173`. Check your machine's reserved ranges
+> with `netsh interface ipv4 show excludedportrange protocol=tcp`.
+
+What you get:
+
+- Realistic sample buckets, objects, access keys, nodes and cluster layout.
+- Every page and every control is live: search, filters, sorting, tabs,
+  list/grid switching, modals, dropdowns, toasts and confirmation dialogs.
+- Create / edit / delete really mutate the mock data, so the UI updates the
+  way it would against a real cluster. Reloading the page reseeds it.
+- Image thumbnails and previews are generated locally as `data:` URIs.
+- **No network requests leave the dev server.** Nothing is sent to Garage, the
+  S3 API, the Go backend, or any other service.
+
+Demo Mode is switched on by `VITE_DEMO_MODE=true` in `.env.demo`, which
+`pnpm demo` loads via `vite --mode demo`. It is gated behind
+`import.meta.env.DEV` in `src/lib/consts.ts`, so a production build evaluates
+it to `false` at compile time and drops the mock adapter from the bundle —
+**it cannot be enabled in a production build.** The sample credentials in
+`src/lib/demo/db.ts` are fabricated and prefixed `GKDEMO`; never put real keys
+there.
+
+The mock plugs in at the single `api.fetch` boundary in `src/lib/api.ts` and
+mirrors the backend's real routes one-for-one, so pages, hooks and queries are
+unchanged between demo and live — swapping the adapter out restores the real
+service with no UI changes.
+
+### Running against a real Garage instance
+
+Point the dev server at a running backend and start both halves:
+
+```sh
+$ cp .env.example .env     # set VITE_API_URL to your backend
+$ pnpm dev                 # client + Go backend concurrently
 ```
 
 Or start each instance separately:
 
 ```sh
-$ pnpm run dev:client
-$ cd backend
-$ pnpm run dev:server
+$ pnpm dev:client
+$ pnpm dev:server          # requires Go and air, runs in ./backend
+```
+
+### Checks
+
+```sh
+$ pnpm lint        # ESLint
+$ pnpm typecheck   # tsc --build
+$ pnpm build       # tsc + production Vite build
 ```
 
 ## Troubleshooting

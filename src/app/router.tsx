@@ -2,7 +2,9 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import AuthLayout from "@/components/layouts/auth-layout";
 import MainLayout from "@/components/layouts/main-layout";
+import RouteError from "./route-error";
 import { BASE_PATH } from "@/lib/consts";
+import { LoadingBlock } from "@/components/ui/states";
 
 const LoginPage = lazy(() => import("@/pages/auth/login"));
 const ClusterPage = lazy(() => import("@/pages/cluster/page"));
@@ -16,6 +18,7 @@ const router = createBrowserRouter(
     {
       path: "/auth",
       Component: AuthLayout,
+      ErrorBoundary: RouteError,
       children: [
         {
           path: "login",
@@ -26,6 +29,7 @@ const router = createBrowserRouter(
     {
       path: "/",
       Component: MainLayout,
+      ErrorBoundary: RouteError,
       children: [
         {
           index: true,
@@ -48,6 +52,10 @@ const router = createBrowserRouter(
         },
       ],
     },
+    {
+      path: "*",
+      Component: RouteError,
+    },
   ],
   {
     basename: BASE_PATH,
@@ -56,7 +64,7 @@ const router = createBrowserRouter(
 
 const Router = () => {
   return (
-    <Suspense>
+    <Suspense fallback={<LoadingBlock />}>
       <RouterProvider router={router} />
     </Suspense>
   );
