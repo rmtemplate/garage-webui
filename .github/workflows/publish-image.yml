@@ -1,0 +1,120 @@
+name: Publish image
+
+# Publishes the production image to GHCR as `latest`, and nothing else.
+#
+# There is deliberately no `pull_request` trigger: a PR from an untrusted fork
+# must never be able to reach a step that holds a GHCR write token. The only
+# ways in are a push to the default branch and a manual dispatch, both of which
+# require write access to this repository.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Only ever one publish in flight; a newer commit supersedes an older build.
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege by default; the job below widens only what it needs.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and push to GHCR
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read # checkout
+      packages: write # push to ghcr.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Produces the OCI labels (source, revision, created, licenses, …).
+      # `flavor: latest=false` switches off the action's own automatic `latest`
+      # tag, so the single `type=raw` entry below is the only tag emitted.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # metadata-action lowercases the image name, which GHCR requires.
+          images: ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=Garage Web UI
+            org.opencontainers.image.description=Admin web UI for Garage, a self-hosted S3-compatible object storage service
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      # Guard for the "latest only" requirement: if a future edit to the step
+      # above ever starts emitting version, SHA or branch tags, fail here
+      # rather than quietly publishing them.
+      - name: Assert the only tag is :latest
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          printf 'resolved tags:\n%s\n' "$TAGS"
+          count=$(printf '%s\n' "$TAGS" | grep -c . || true)
+          if [ "$count" -ne 1 ]; then
+            echo "::error::expected exactly 1 tag, got $count"
+            exit 1
+          fi
+          case "$TAGS" in
+            *:latest) ;;
+            *) echo "::error::the single tag is not :latest"; exit 1 ;;
+          esac
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Provenance and SBOM attestations add extra (untagged) manifests to
+          # the package. Off, so the package holds exactly one image.
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the published image
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          image=$(printf '%s' "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          echo "digest: $DIGEST"
+          docker buildx imagetools inspect "${image}:latest"
+          {
+            echo "### Published"
+            echo
+            echo '```'
+            echo "docker pull ${image}:latest"
+            echo '```'
+            echo
+            echo "- digest: \`${DIGEST}\`"
+            echo "- commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
